@@ -3,7 +3,7 @@
 """
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 import time
 from abc import ABC, abstractmethod
 
@@ -178,6 +178,7 @@ class FBSNN(ABC): # Forward-Backward Stochastic Neural Network
     ############################# Change Here! ################################
     ###########################################################################
     @abstractmethod
+    # time, X = state, Y = value function V, Z = Gradient_x (Value V)
     def phi_tf(self, t, X, Y, Z): # M x 1, M x D, M x 1, M x D
         pass # M x1
     

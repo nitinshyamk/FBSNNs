@@ -3,7 +3,7 @@
 """
 
 import numpy as np
-import tensorflow as tf
+import tensorflow.compat.v1 as tf
 from FBSNNs import FBSNN
 import matplotlib.pyplot as plt
 from plotting import newfig, savefig
@@ -33,7 +33,7 @@ class HamiltonJacobiBellman(FBSNN):
 
 
 if __name__ == "__main__":
-    
+    tf.disable_eager_execution()
     M = 100 # number of trajectories (batch size)
     N = 50 # number of time snapshots
     D = 100 # number of dimensions
