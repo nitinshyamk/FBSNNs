@@ -8,6 +8,20 @@ import time
 from abc import ABC, abstractmethod
 
 class FBSNN(ABC): # Forward-Backward Stochastic Neural Network
+    '''
+    Creates an FBSNN with initialized weights
+    Inputs:
+        Xi: Initial state
+        T: End Time
+        M: Number of trajectories to simulate in a batch
+        N: Number of timesteps (dt = T / N)
+        D: Dimension of system
+        layers: list of dimensions corresponding to layer dimensions
+            ex: [l0, l1, l2, l3] creates a 3 layer neural network
+            mapping from dimension l0 -> l1 -> l2 -> l3
+            
+            layers[0] must equal D + 1 (time) and layers[n - 1] must equal 1
+    '''
     def __init__(self, Xi, T,
                        M, N, D,
                        layers):
