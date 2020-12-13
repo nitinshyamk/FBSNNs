@@ -7,6 +7,7 @@ import tensorflow.compat.v1 as tf
 from FBSNNs import FBSNN
 import matplotlib.pyplot as plt
 from plotting import newfig, savefig
+from utilities import CartPoleModel
 
 class CartpoleHamiltonJacobiBellman4D(FBSNN):
     '''
@@ -29,68 +30,92 @@ class CartpoleHamiltonJacobiBellman4D(FBSNN):
             
             layers[0] must equal D + 1 (time) and layers[n - 1] must equal 1
     '''
-    def __init__(self, Cartpole, Q, R, Qt, snoise, Xi, T, N, K, D, layers, ):
-        
-        super().__init__(Xi, T, K, N, D, layers)
+    def __init__(self, Cartpole, Q, R, Qt, snoise, Xi, T, N, K, D, layers):
         self.cartpole = Cartpole
         self.Q = Q
         self.R = R
         self.Qt = Qt
         self.snoise = snoise
+        super().__init__(Xi, T, K, N, D, layers)
+        
     
     ### REQUIRED IMPLEMENTATION ###
     
     def phi_tf(self, t, X, Y, Z): # M x 1, M x D, M x 1, M x D
-        phi1 = 0.5 * np.matmul(np.matmul(X, self.Q), X)
+        const = tf.constant
         
+        phi1 = const(0.5) * self.quadraticForm(X, self.Q)
         A, B = self.cartpole.f(X)
         BtXgradV = self.BtXgradV(B, Z);
-        phi2 = 0.5 * np.square(BtXgradV) / self.R
+        phi2 = const(0.5) * tf.square(BtXgradV) / const(self.R * 1.0)
         
         return phi1 + phi2
         
     
     def g_tf(self, X): # M x D
-        return self.quadraticForm(X, self.Qt);
+        return self.quadraticForm(X, self.Qt); # M x 1
 
     def mu_tf(self, t, X, Y, Z): # M x 1, M x D, M x 1, M x D
+    
         A, B = self.cartpole.f(X)
+        matmul, multiply, rowsum = self.getTFUtils()
         
-        uinput = (1.0 / self.R) * self.BtXgradV(B, Z)
+        uinput = tf.constant(1.0 / self.R) * self.BtXgradV(B, Z)
+        inputs = tf.repeat(tf.reshape(uinput, (-1, 1)), repeats = 4, axis = 1)
         
-        return A - B * uinput
+        return A - multiply(inputs, B) # M x D
     
     def sigma_tf(self, t, X, Y): # M x 1, M x D, M x 1
-        return self.snoise * np.identity(self.D)
+        M = self.M
+        D = self.D
+        return tf.constant(self.snoise) * tf.matrix_diag(tf.ones([M,D]))
     
     #### HELPER METHODS
     
     def BtXgradV(self, Bx, Vgrad): # M x D, M x D
-        return np.sum(np.multiply(Bx, Vgrad), axis = 1)
+        matmul, multiply, rowsum = self.getTFUtils()
+        return rowsum(multiply(Bx, Vgrad))
     
     def quadraticForm(self, X, PSD): # M x D, D x D
-        return np.sum(np.multiply(np.matmul(X, PSD), X), axis = 1);
+        matmul, multiply, rowsum = self.getTFUtils()
+        return rowsum(multiply(matmul(X, PSD), X)) # M x 
+    
+    def getTFUtils(self):
+        matmul = tf.linalg.matmul
+        multiply = tf.math.multiply
+        rowsum = lambda x : tf.math.reduce_sum(x, axis = 1);        
+        return (matmul, multiply, rowsum)
     ###########################################################################
 
 
 if __name__ == "__main__":
     tf.disable_eager_execution()
-    M = 100 # number of trajectories (batch size)
-    N = 50 # number of time snapshots
-    D = 100 # number of dimensions
     
-    layers = [D+1] + 4*[256] + [1]
-
-    Xi = np.zeros([1,D])
+    
+    # training and system configuration
     T = 1.0
+    K = 100 # number of trajectories (batch size)
+    N = 50 # number of time snapshots
+    D = 4 # number of dimensions
+    layers = [D+1] + 4*[32] + [1]
+    
+    # cartpole parameters
+    m = 1
+    M = 1
+    L = 1
+    Xi = np.zeros([1,D])
+    
+    cp = CartPoleModel(m, M, L);
+    Q = np.identity(D);
+    Qt = np.identity(D);
+    snoise = 0.01
+    R = 1
+    
          
     # Training
-    model = HamiltonJacobiBellman(Xi, T,
-                                  M, N, D,
-                                  layers)
+    model = CartpoleHamiltonJacobiBellman4D(cp, Q, R, Qt, snoise, Xi, T, N, K, D, layers);
         
     model.train(N_Iter = 2*10**4, learning_rate=1e-3)
-    model.train(N_Iter = 3*10**4, learning_rate=1e-4)
     model.train(N_Iter = 3*10**4, learning_rate=1e-5)
     model.train(N_Iter = 2*10**4, learning_rate=1e-6)
     
@@ -99,42 +124,3 @@ if __name__ == "__main__":
     
     X_pred, Y_pred = model.predict(Xi, t_test, W_test)
     
-    def g(X): # MC x NC x D
-        return np.log(0.5 + 0.5*np.sum(X**2, axis=2, keepdims=True)) # MC x N x 1
-        
-    def u_exact(t, X): # NC x 1, NC x D
-        MC = 10**5
-        NC = t.shape[0]
-        
-        W = np.random.normal(size=(MC,NC,D)) # MC x NC x D
-        
-        return -np.log(np.mean(np.exp(-g(X + np.sqrt(2.0*np.abs(T-t))*W)),axis=0))
-    
-    Y_test = u_exact(t_test[0,:,:], X_pred[0,:,:])
-    
-    Y_test_terminal = np.log(0.5 + 0.5*np.sum(X_pred[:,-1,:]**2, axis=1, keepdims=True))
-    
-    plt.figure()
-    plt.plot(t_test[0:1,:,0].T,Y_pred[0:1,:,0].T,'b',label='Learned $u(t,X_t)$')
-    #plt.plot(t_test[1:5,:,0].T,Y_pred[1:5,:,0].T,'b')
-    plt.plot(t_test[0,:,0].T,Y_test[:,0].T,'r--',label='Exact $u(t,X_t)$')
-    plt.plot(t_test[0:1,-1,0],Y_test_terminal[0:1,0],'ks',label='$Y_T = u(T,X_T)$')
-    #plt.plot(t_test[1:5,-1,0],Y_test_terminal[1:5,0])
-    plt.plot([0],Y_test[0,0],'ko',label='$Y_0 = u(0,X_0)$')
-    plt.xlabel('$t$')
-    plt.ylabel('$Y_t = u(t,X_t)$')
-    plt.title('100-dimensional Hamilton-Jacobi-Bellman')
-    plt.legend()
-    
-    # savefig('./figures/HJB_Apr18_50', crop = False)
-    
-    errors = np.sqrt((Y_test-Y_pred[0,:,:])**2/Y_test**2)
-    
-    plt.figure()
-    plt.plot(t_test[0,:,0],errors,'b')
-    plt.xlabel('$t$')
-    plt.ylabel('relative error')
-    plt.title('100-dimensional Hamilton-Jacobi-Bellman')
-    # plt.legend()
-    
-    # savefig('./figures/HJB_Apr18_50_errors', crop = False)

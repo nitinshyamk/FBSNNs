@@ -9,6 +9,7 @@ import numpy as np
 import scipy.io as sp
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import tensorflow.compat.v1 as tf
 
 
 class CartPoleModel(object):
@@ -36,7 +37,7 @@ class CartPoleModel(object):
         returns the tuple of matrices (A, B). Details follow:
         
         Inputs:
-            X : K x D matrix of states corresponding to the D dimensional state 
+            X : K x D tensor of states corresponding to the D dimensional state 
                 representations of K different trajectories
         Outputs:
             A: K x D matrix where A[i, :, :] = a(x), and x is the state of
@@ -53,7 +54,14 @@ class CartPoleModel(object):
         g = self.g
         r = m / (m + M)
         K, D = X.shape
-        # gravitational constant
+
+        #tensorize constants
+        rt = tf.constant(r)
+        gt = tf.constant(g)
+        mt = tf.constant(m)
+        Lt = tf.constant(L)
+    
+        
         
         
         if (D != 4):
@@ -63,26 +71,38 @@ class CartPoleModel(object):
         
         Ax1 = x2;
         
-        Axdenom = np.ones(K) - r * np.square(np.cos(x3))
+        sm = tf.math.scalar_mul
+        cos = tf.math.cos
+        sin = tf.math.sin
+        square = tf.math.square
+        multiply = tf.math.multiply
+        divide = tf.math.divide
+        ones = lambda dim : tf.ones(dim, dtype = tf.float32)
+        zeros = lambda dim : tf.zeros(dim, dtype = tf.float32)
         
-        Ax2_a = r * np.multiply(np.sin(2 * x3), g * np.ones(K) - r * L * np.multiply(np.square(x4), np.cos(x3)))
-        Ax2_b = r * L *  np.multiply(np.square(x4), np.sin(x3))
-        Ax2 = np.divide(Ax2_a, 2 * Axdenom) - Ax2_b;
+        Axdenom = ones(K) - sm(rt, square(cos(x3)))
+        
+        
+        
+        Ax2_a = sm(rt, sin(sm(tf.constant(2.0), x3)))
+        Ax2_b = sm(gt, ones(K)) - sm(rt * Lt, multiply(square(x4), cos(x3)))                  
+        Ax2_c = sm(rt * Lt, multiply(square(x4), sin(x3)))
+        Ax2 = divide(multiply(Ax2_a, Ax2_b), sm(tf.constant(2.0), Axdenom)) - Ax2_c;
         
         Ax3 = x4
         
-        Ax4_a = g * np.sin(x3) / L - np.multiply(np.square(x4), np.sin(2 * x3)) * r / 2
-        Ax4 = np.divide(Ax4_a, Axdenom);
+        Ax4_a = sm(gt / Lt, sin(x3)) - sm(tf.constant(0.5) * rt, multiply(square(x4), sin(sm(tf.constant(2.0), x3))))
+        Ax4 = divide(  Ax4_a, ones(K) - sm(rt * rt, square(cos(x3)))  );
         
-        Bx1 = np.zeros(K);
-        Bx2 = np.divide(r * r * np.square(np.cos(x3)), Axdenom) / m + np.ones(K) * r / m;
-        Bx3 = np.zeros(K);
-        Bx4 = np.multiply(np.divide(r * np.ones(K), m * L * Axdenom), np.cos(x3))
+        Bx1 = tf.zeros(K);
+        Bx2 = divide(sm(rt * rt / mt, square(cos(x3))), Axdenom) + sm(rt / mt, ones(K))
+        Bx3 = zeros(K);
+        Bx4 = sm(rt / (mt * Lt), divide(cos(x3), Axdenom))
         
-        rs = lambda a : a.reshape(-1, 1);
+        rs = lambda a : tf.reshape(a, [-1, 1]); 
         
-        A = np.concatenate((rs(Ax1), rs(Ax2), rs(Ax3), rs(Ax4)), axis = 1)
-        B = np.concatenate((rs(Bx1), rs(Bx2), rs(Bx3), rs(Bx4)), axis = 1)
+        A = tf.concat([rs(Ax1), rs(Ax2), rs(Ax3), rs(Ax4)], axis = 1)
+        B = tf.concat([rs(Bx1), rs(Bx2), rs(Bx3), rs(Bx4)], axis = 1)
         
         return (A, B)
 
