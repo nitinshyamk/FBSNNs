@@ -160,7 +160,7 @@ class FBSNN(ABC): # Forward-Backward Stochastic Neural Network
         return t, W
     
     def train(self, N_Iter, learning_rate):
-        
+        final_loss = 0;
         start_time = time.time()
         for it in range(N_Iter):
             
@@ -177,7 +177,8 @@ class FBSNN(ABC): # Forward-Backward Stochastic Neural Network
                 print('It: %d, Loss: %.3e, Y0: %.3f, Time: %.2f, Learning Rate: %.3e' % 
                       (it, loss_value, Y0_value, elapsed, learning_rate_value))
                 start_time = time.time()
-                
+                final_loss = loss_value
+        return final_loss
     
     def predict(self, Xi_star, t_star, W_star):
         

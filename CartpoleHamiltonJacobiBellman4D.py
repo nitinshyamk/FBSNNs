@@ -5,9 +5,8 @@
 import numpy as np
 import tensorflow.compat.v1 as tf
 from FBSNNs import FBSNN
-import matplotlib.pyplot as plt
-from plotting import newfig, savefig
-from utilities import CartPoleModel
+from CartPoleModel import CartPoleModel
+from PhasePortrait import PhasePortrait
 
 class CartpoleHamiltonJacobiBellman4D(FBSNN):
     '''
@@ -94,10 +93,10 @@ if __name__ == "__main__":
     
     # training and system configuration
     T = 1.0
-    K = 100 # number of trajectories (batch size)
+    K = 5000 # number of trajectories (batch size)
     N = 50 # number of time snapshots
     D = 4 # number of dimensions
-    layers = [D+1] + 4*[32] + [1]
+    layers = [D+1] + 4*[64] + [1]
     
     # cartpole parameters
     m = 1
@@ -114,10 +113,13 @@ if __name__ == "__main__":
          
     # Training
     model = CartpoleHamiltonJacobiBellman4D(cp, Q, R, Qt, snoise, Xi, T, N, K, D, layers);
-        
-    model.train(N_Iter = 2*10**4, learning_rate=1e-3)
-    model.train(N_Iter = 3*10**4, learning_rate=1e-5)
-    model.train(N_Iter = 2*10**4, learning_rate=1e-6)
+
+    #PhasePortrait.valueFunctionPhasePortrait("test1", cp, model)
+    
+    model.train(N_Iter = 2*10**3, learning_rate=1e-3)
+    model.train(N_Iter = 3*10**3, learning_rate=1e-4)
+    model.train(N_Iter = 3*10**3, learning_rate=1e-5)
+    model.train(N_Iter = 2*10**3, learning_rate=1e-6)
     
     
     t_test, W_test = model.fetch_minibatch()
